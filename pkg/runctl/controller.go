@@ -287,8 +287,7 @@ func (c *Controller) syncHandler(key string) error {
 		}
 		err = runManager.Cleanup(pipelineRun)
 		if err == nil {
-			pipelineRun.UpdateResult(api.ResultDeleted)
-			err = c.finish(pipelineRun)
+			err = c.finish(pipelineRun, api.ResultDeleted)
 			if err == nil {
 				c.metrics.CountResult(api.ResultDeleted)
 			}
@@ -359,9 +358,8 @@ func (c *Controller) syncHandler(key string) error {
 				c.recorder.Event(pipelineRunAPIObj, corev1.EventTypeWarning, api.EventReasonLoadPipelineRunsConfigFailed, err.Error())
 				return err
 			}
-			pipelineRun.UpdateResult(api.ResultErrorInfra)
 			pipelineRun.StoreErrorAsMessage(err, "failed to load configuration for pipeline runs")
-			err = c.finish(pipelineRun)
+			err = c.finish(pipelineRun, api.ResultErrorInfra)
 			if err == nil {
 				c.metrics.CountResult(pipelineRun.GetStatus().Result)
 			}
@@ -458,7 +456,7 @@ func (c *Controller) syncHandler(key string) error {
 		if err != nil {
 			c.recorder.Event(pipelineRunAPIObj, corev1.EventTypeWarning, api.EventReasonCleaningFailed, err.Error())
 		}
-		return c.finish(pipelineRun)
+		return c.finish(pipelineRun, api.ResultUndefined)
 	default:
 		klog.V(2).Infof("Skip PipelineRun with state %s", pipelineRun.GetStatus().State)
 	}
@@ -479,8 +477,8 @@ func (c *Controller) commitStatusAndMeter(pipelineRun k8s.PipelineRun) error {
 	return nil
 }
 
-func (c *Controller) finish(pipelineRun k8s.PipelineRun) error {
-	if err := c.changeState(pipelineRun, api.StateFinished, api.ResultUndefined); err != nil {
+func (c *Controller) finish(pipelineRun k8s.PipelineRun, result api.Result) error {
+	if err := c.changeState(pipelineRun, api.StateFinished, result); err != nil {
 		return err
 	}
 	if err := c.commitStatusAndMeter(pipelineRun); err != nil {
